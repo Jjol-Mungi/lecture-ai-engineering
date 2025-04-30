@@ -36,9 +36,12 @@ name = st.text_input("あなたの名前", "ゲスト")
 st.write(f"こんにちは、{name}さん！")
 
 # ボタン
-# st.subheader("ボタン")
-# if st.button("クリックしてください"):
-#     st.success("ボタンがクリックされました！")
+st.subheader("ボタン")
+if st.button("クリックしてください"):
+    with st.spinner("読み込み中..."):
+        time.sleep(3)
+        st.success("ボタンがクリックされました！")
+
 
 # チェックボックス
 # st.subheader("チェックボックス")
