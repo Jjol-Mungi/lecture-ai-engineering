@@ -3,13 +3,21 @@ import mlflow
 import mlflow.sklearn
 import pandas as pd
 import numpy as np
+import time
 import random
 import pickle
+import logging
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import LabelEncoder
 from mlflow.models.signature import infer_signature
+
+# ロガーの設定
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
 
 
 # データ準備
@@ -47,33 +55,47 @@ def train_and_evaluate(
         n_estimators=n_estimators, max_depth=max_depth, random_state=random_state
     )
     model.fit(X_train, y_train)
+
+    start_time = time.time()
     predictions = model.predict(X_test)
+    end_time = time.time()
+
+    inference_time = end_time - start_time
+
     accuracy = accuracy_score(y_test, predictions)
-    return model, accuracy
+    return model, accuracy, inference_time
 
 
 # モデル保存
-def log_model(model, accuracy, params):
-    with mlflow.start_run():
-        # パラメータをログ
-        for param_name, param_value in params.items():
-            mlflow.log_param(param_name, param_value)
+def log_model(model, accuracy, inference_time, params):
+    try:
+        #実験名の設定
+        mlflow.set_experiment("improved")
 
-        # メトリクスをログ
-        mlflow.log_metric("accuracy", accuracy)
+        with mlflow.start_run():
+            # パラメータをログ
+            for param_name, param_value in params.items():
+                mlflow.log_param(param_name, param_value)
 
-        # モデルのシグネチャを推論
-        signature = infer_signature(X_train, model.predict(X_train))
+            # メトリクスをログ
+            mlflow.log_metric("accuracy", accuracy)
+            mlflow.log_metric("inference_time", inference_time)
 
-        # モデルを保存
-        mlflow.sklearn.log_model(
-            model,
-            "model",
-            signature=signature,
-            input_example=X_test.iloc[:5],  # 入力例を指定
-        )
-        # accurecyとparmsは改行して表示
-        print(f"モデルのログ記録値 \naccuracy: {accuracy}\nparams: {params}")
+            # モデルのシグネチャを推論
+            signature = infer_signature(X_train, model.predict(X_train))
+
+            # モデルを保存
+            mlflow.sklearn.log_model(
+                model,
+                "model",
+                signature=signature,
+                input_example=X_test.iloc[:5],  # 入力例を指定
+            )
+            # accurecyとparmsは改行して表示
+            print(f"モデルのログ記録値 \naccuracy: {accuracy}\ninference_time: {inference_time}\nparams: {params}")
+    except Exception as e:
+        logger.error(f"MLflowでのモデル記録中にエラーが発生しました: {str(e)}")
+        raise
 
 
 # メイン処理
@@ -102,7 +124,7 @@ if __name__ == "__main__":
     )
 
     # 学習と評価
-    model, accuracy = train_and_evaluate(
+    model, accuracy, inference_time = train_and_evaluate(
         X_train,
         X_test,
         y_train,
@@ -113,7 +135,7 @@ if __name__ == "__main__":
     )
 
     # モデル保存
-    log_model(model, accuracy, params)
+    log_model(model, accuracy, inference_time, params)
 
     model_dir = "models"
     os.makedirs(model_dir, exist_ok=True)
